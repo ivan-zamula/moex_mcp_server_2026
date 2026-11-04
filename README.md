@@ -2,43 +2,86 @@
 
 [English](README.md) | [Русский](README.ru.md)
 
-A Python server that provides an AI agent with an HTTP tool for retrieving Moscow Exchange stock quotations.
-
+A Python MCP server that provides an AI host with a tool for retrieving Moscow Exchange stock quotations.
 ## Features
 
-- FastAPI server with health and tools endpoints.
-- Stock quotation tool backed by the Moscow Exchange ISS API.
-- Console AI-agent client written in Python.
-- External model access through OpenRouter and the OpenAI-compatible API.
-- Tool-call loop that returns the server result to the model for the final answer.
+- Standard MCP server built with the official Python SDK.
+- Tools for current quotations, historical prices and security information backed by the Moscow Exchange ISS API.
+- Minimal MCP client for protocol checks.
 
-This is an MCP-like HTTP implementation, not a complete implementation of the MCP standard. Production security and deployment are outside the current scope.
+The current transport is `stdio`. Production security and deployment are outside the current scope.
 
 ## Architecture
 
 ```text
-User -> agent.py -> OpenRouter model
-             |             |
-             +-> tools ----+
-                  |
-                  v
-            FastAPI server -> MOEX ISS API
+MCP host/client -> stdio -> MCP server -> MOEX tools -> MOEX ISS API
 ```
 
-The client discovers tools through `GET /tools`. When the model requests `get_stock_price`, the client calls the local server and sends the JSON result back to the model.
+The MCP client discovers tools through the standard MCP session and calls
+`get_stock_price`, `get_stock_history` and `get_stock_info` through the `stdio` transport.
+
+## Tools
+
+### `get_stock_price`
+
+Returns the current stock price on the Moscow Exchange.
+
+Parameter:
+
+```text
+ticker: SBER
+```
+
+Example result:
+
+```json
+{
+  "ticker": "SBER",
+  "price": 291.41,
+  "currency": "RUB"
+}
+```
+
+### `get_stock_history`
+
+Returns historical stock prices for a specified period. Parameters are `ticker`,
+`from_date` and `to_date` in `YYYY-MM-DD` format. The result contains the trading
+date, opening, high, low and closing prices, as well as trading volume.
+
+### `get_stock_info`
+
+Returns the ticker, name, trading board, board name and instrument status. It
+accepts the `ticker` parameter.
+
+### Market tools
+
+- `get_market_summary(limit)` — market summary with the number of instruments and top gainers and losers.
+- `get_top_gainers(limit)` — stocks with the largest increase during the current session.
+- `get_top_losers(limit)` — stocks with the largest decrease during the current session.
+
+The `limit` parameter controls the number of returned results.
+
+### Additional tools
+
+- `get_dividends(ticker)` — dividend events for a security.
+- `compare_stocks(tickers)` — compares current prices and changes for several stocks.
+- `calculate_portfolio_value(portfolio)` — calculates portfolio value. Each position contains `ticker` and `quantity`.
 
 ## Stack and structure
 
-Python 3.11+, FastAPI, Uvicorn, Requests, OpenAI Python SDK, OpenRouter and `python-dotenv`.
+Python 3.11+, the official MCP Python SDK and Requests.
 
 | Path | Purpose |
 | --- | --- |
-| [`src/mcp_server/server.py`](src/mcp_server/server.py) | FastAPI application and HTTP endpoints |
-| [`src/mcp_server/tools.py`](src/mcp_server/tools.py) | Tool schemas exposed to the client |
-| [`src/clients/agent.py`](src/clients/agent.py) | OpenRouter client and tool-call loop |
-| [`src/clients/agent_openai.py`](src/clients/agent_openai.py) | Agents SDK client with the same OpenRouter configuration |
+| [`src/mcp_server/mcp_app.py`](src/mcp_server/mcp_app.py) | MCP server and tool registration |
+| [`src/mcp_server/tools/market.py`](src/mcp_server/tools/market.py) | Market tools |
+| [`src/mcp_server/tools/stocks.py`](src/mcp_server/tools/stocks.py) | Stock tools |
+| [`src/mcp_server/tools/portfolio.py`](src/mcp_server/tools/portfolio.py) | Portfolio tools |
+| [`src/mcp_server/tools/moex.py`](src/mcp_server/tools/moex.py) | Shared ISS API helpers |
+| [`src/clients/mcp_client.py`](src/clients/mcp_client.py) | MCP client for protocol checks |
 | [`tests/`](tests/) | Local test files |
 | [`docs/`](docs/) | Architecture and runbook notes |
+| [`scripts/`](scripts/) | Server and test commands |
 
 ## Setup
 
@@ -48,42 +91,18 @@ Python 3.11 or newer is required.
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
-cp .env.example .env
 ```
-
-Create an API key at [OpenRouter](https://openrouter.ai/) and set the local `.env` values:
-
-```env
-OPENAI_API_KEY=your_openrouter_api_key
-OPENAI_BASE_URL=https://openrouter.ai/api/v1
-OPENAI_MODEL=openrouter/free
-MCP_SERVER_URL=http://127.0.0.1:8080
-```
-
-Keep the real `.env` file local. It is excluded from Git.
 
 ## Run
 
-Start the server in the first terminal:
+Start the MCP client from the project root:
 
 ```bash
-cd src/mcp_server
-uvicorn server:app --reload --port 8080
+PYTHONPATH=src python -m clients.mcp_client
 ```
 
-Open the API documentation at <http://127.0.0.1:8080/docs>.
-
-Start the client from the project root in a second terminal:
-
-```bash
-PYTHONPATH=src python -m clients.agent
-```
-
-The Agents SDK variant can be started with:
-
-```bash
-PYTHONPATH=src python -m clients.agent_openai
-```
+The client starts the MCP server over `stdio`, discovers its tools and calls
+`get_stock_price`.
 
 Then enter a question such as:
 
@@ -99,7 +118,7 @@ Compile the Python sources without making external API requests:
 python -m compileall -q src tests
 ```
 
-The OpenRouter call and the live MOEX request require configured credentials and a running network service.
+The live MOEX request requires network access.
 
 ## Idea
 

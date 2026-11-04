@@ -4,16 +4,14 @@ version = "0.1.0"
 description = "MCP-сервер на Python для получения котировок Московской биржи"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi",
-    "uvicorn",
     "requests",
-    "openai",
-    "openai-agents",
-    "python-dotenv",
+    "mcp>=2,<3",
 ]
 
 [project.optional-dependencies]
-dev = []
+dev = [
+    "pytest",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
