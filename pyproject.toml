@@ -1,0 +1,20 @@
+[project]
+name = "moex-mcp-server-2026"
+version = "0.1.0"
+description = "MCP-сервер на Python для получения котировок Московской биржи"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "requests",
+    "openai",
+    "openai-agents",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = []
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
